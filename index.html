@@ -1,170 +1,508 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Aquaponics ENG SCI 1050</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AquaControl — Aquaponics Monitoring System</title>
 <style>
-  /* basic styling so it doesnt look completely terrible */
-  body { font-family: sans-serif; background: #f9f9f9; padding: 20px; }
-  .red { color: red; font-weight: bold; }
-  .green { color: green; font-weight: bold; }
-  .section { border: 1px solid black; padding: 15px; background: white; margin-bottom: 15px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f9f4; color: #1a1a1a; min-height: 100vh; }
+
+.header { background: white; padding: 1rem 2rem; border-bottom: 1px solid #d0ead9; display: flex; align-items: center; gap: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); flex-wrap: wrap; gap: 12px; }
+.logo { width: 44px; height: 44px; border-radius: 10px; background: #1D9E75; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; font-weight: 700; flex-shrink: 0; }
+.header-text h1 { font-size: 20px; font-weight: 700; color: #0F6E56; }
+.header-text p { font-size: 13px; color: #6b7280; }
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.live-badge { display: flex; align-items: center; gap: 7px; background: #E1F5EE; border: 1px solid #9FE1CB; border-radius: 99px; padding: 5px 14px; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; animation: pulse 1.5s infinite; }
+.live-dot.paused { animation: none; background: #9ca3af; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+.live-text { font-size: 13px; font-weight: 600; color: #0F6E56; }
+
+.health-bar-wrap { background: white; border-bottom: 1px solid #d0ead9; padding: 0.75rem 2rem; display: flex; align-items: center; gap: 16px; }
+.health-label { font-size: 13px; font-weight: 600; color: #6b7280; white-space: nowrap; }
+.health-track { flex: 1; height: 10px; background: #f0f0f0; border-radius: 99px; overflow: hidden; max-width: 300px; }
+.health-fill { height: 100%; border-radius: 99px; transition: width 0.5s, background 0.4s; }
+.health-score { font-size: 18px; font-weight: 700; color: #0F6E56; min-width: 50px; }
+.health-status { font-size: 13px; font-weight: 600; padding: 3px 12px; border-radius: 99px; }
+
+.main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 2rem; }
+.section-label { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; margin-top: 1.5rem; }
+
+.demo-bar { background: white; border: 1px solid #d0ead9; border-radius: 14px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.demo-label { font-size: 13px; font-weight: 600; color: #374151; }
+.btn { padding: 7px 16px; border-radius: 8px; border: 1px solid #d0ead9; background: white; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.btn:hover { background: #f0f9f4; border-color: #1D9E75; color: #0F6E56; }
+.btn-danger { border-color: #fca5a5; color: #991b1b; }
+.btn-danger:hover { background: #fef2f2; border-color: #E24B4A; }
+.btn-success { border-color: #9FE1CB; color: #0F6E56; background: #E1F5EE; }
+.btn-success:hover { background: #c8f0e0; }
+.btn-primary { background: #1D9E75; color: white; border-color: #1D9E75; }
+.btn-primary:hover { background: #0F6E56; }
+
+.sensor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 1.5rem; }
+.sensor-card { background: white; border-radius: 14px; padding: 1.25rem 1.5rem; border: 1.5px solid #d0ead9; position: relative; overflow: hidden; transition: border-color 0.3s; }
+.sensor-card.warn { border-color: #fca5a5; background: #fff8f8; }
+.sensor-card::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background:#1D9E75; transition: background 0.4s; }
+.sensor-card.warn::before { background: #E24B4A; }
+.sensor-name { font-size: 12px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.sensor-value { font-size: 38px; font-weight: 700; color: #1a1a1a; line-height: 1; transition: color 0.3s; }
+.sensor-card.warn .sensor-value { color: #991b1b; }
+.sensor-unit { font-size: 14px; color: #6b7280; margin-left: 3px; font-weight: 400; }
+.sensor-range { font-size: 12px; color: #9ca3af; margin-top: 5px; }
+.sensor-status { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; }
+.status-ok { background: #E1F5EE; color: #0F6E56; }
+.status-warn { background: #FCEBEB; color: #A32D2D; }
+.sdot { width: 6px; height: 6px; border-radius: 50%; }
+.sdot-ok { background: #1D9E75; }
+.sdot-warn { background: #E24B4A; }
+.progress-track { height: 5px; background: #f0f0f0; border-radius: 99px; margin-top: 12px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 99px; transition: width 0.6s, background 0.4s; }
+.fill-ok { background: #1D9E75; }
+.fill-warn { background: #E24B4A; }
+
+.slider-section { background: white; border: 1px solid #d0ead9; border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; }
+.slider-title { font-size: 15px; font-weight: 700; color: #0F6E56; margin-bottom: 1rem; }
+.slider-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.slider-row { display: flex; flex-direction: column; gap: 6px; }
+.slider-name { font-size: 12px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+.slider-val { font-size: 18px; font-weight: 700; color: #0F6E56; }
+input[type=range] { width: 100%; accent-color: #1D9E75; cursor: pointer; }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 1.5rem; }
+@media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+
+.calc-card { background: white; border-radius: 14px; padding: 1.5rem; border: 1px solid #d0ead9; }
+.calc-title { font-size: 15px; font-weight: 700; color: #0F6E56; margin-bottom: 1rem; }
+.input-row { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
+.input-row label { font-size: 13px; color: #6b7280; min-width: 100px; }
+.input-row input[type=number] { flex: 1; padding: 8px 12px; border: 1px solid #d0ead9; border-radius: 8px; font-size: 15px; font-family: inherit; outline: none; }
+.input-row input:focus { border-color: #1D9E75; }
+.result-box { background: #f0f9f4; border-radius: 10px; padding: 0.8rem 1rem; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.result-label { font-size: 13px; color: #6b7280; }
+.result-value { font-size: 18px; font-weight: 700; color: #0F6E56; }
+.formula-note { font-size: 11px; color: #9ca3af; margin-top: 8px; font-style: italic; }
+.water-table { width: 100%; border-collapse: collapse; }
+.water-table tr { border-bottom: 1px solid #f0f9f4; }
+.water-table td { padding: 8px 4px; font-size: 14px; }
+.water-table td:first-child { color: #6b7280; }
+.water-table td:last-child { text-align: right; font-weight: 600; }
+.water-table .total-row td { font-weight: 700; color: #0F6E56; font-size: 15px; border-top: 1px solid #d0ead9; padding-top: 10px; }
+
+.constraints-card { background: white; border-radius: 14px; border: 1px solid #d0ead9; overflow: hidden; margin-bottom: 1.5rem; }
+.constraints-header { padding: 1rem 1.5rem; border-bottom: 1px solid #d0ead9; display: flex; align-items: center; justify-content: space-between; }
+.constraints-title { font-size: 15px; font-weight: 700; color: #0F6E56; }
+.pass-count { font-size: 13px; font-weight: 700; color: #0F6E56; background: #E1F5EE; padding: 4px 12px; border-radius: 99px; }
+.constraints-table { width: 100%; border-collapse: collapse; }
+.constraints-table th { text-align: left; font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 1.5rem; border-bottom: 1px solid #f0f0f0; }
+.constraints-table td { padding: 10px 1.5rem; font-size: 13px; border-bottom: 1px solid #f9f9f9; vertical-align: middle; }
+.constraints-table tr:last-child td { border-bottom: none; }
+.constraints-table tr.fail-row { background: #fff8f8; }
+.pass-badge { display: inline-flex; align-items: center; gap: 4px; background: #E1F5EE; color: #0F6E56; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px; }
+.fail-badge { display: inline-flex; align-items: center; gap: 4px; background: #FCEBEB; color: #A32D2D; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px; }
+.constraint-name { font-weight: 600; color: #374151; }
+.constraint-target { color: #6b7280; }
+.constraint-actual { font-weight: 700; }
+.actual-ok { color: #0F6E56; }
+.actual-fail { color: #991b1b; }
+
+.log-card { background: white; border-radius: 14px; padding: 1.5rem; border: 1px solid #d0ead9; margin-bottom: 1.5rem; }
+.log-title { font-size: 15px; font-weight: 700; color: #0F6E56; margin-bottom: 1rem; }
+.log-entry { display: flex; align-items: flex-start; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f9f9f9; font-size: 13px; }
+.log-entry:last-child { border-bottom: none; }
+.log-time { color: #9ca3af; min-width: 70px; font-family: monospace; font-size: 12px; }
+.log-ok { color: #0F6E56; font-weight: 600; }
+.log-warn { color: #A32D2D; font-weight: 600; }
+.log-info { color: #374151; }
+
+.footer { text-align: center; padding: 1.5rem; font-size: 12px; color: #9ca3af; border-top: 1px solid #d0ead9; background: white; margin-top: 1rem; }
 </style>
 </head>
 <body>
 
-  <h1>AquaControl System</h1>
-  <p>Overall Status: <span id="sys-status">OK</span></p>
+<div class="header">
+  <div class="logo">AC</div>
+  <div class="header-text">
+    <h1>AquaControl</h1>
+    <p>Aquaponics monitoring system — London, ON</p>
+  </div>
+  <div class="header-right">
+    <div class="live-badge">
+      <div class="live-dot" id="live-dot"></div>
+      <span class="live-text" id="live-text">Live</span>
+    </div>
+  </div>
+</div>
 
-  <div class="section">
-    <h3>Live Sensors & Override</h3>
-    <p>Move sliders to test constraints</p>
-    
-    <p>
-      pH Level: 
-      <input type="range" id="ph-slider" min="5" max="10" step="0.1" value="7.2" oninput="checkAll()"> 
-      <span id="ph-val">7.2</span> <span id="ph-msg"></span>
-    </p>
-    <p>
-      Temp (°C): 
-      <input type="range" id="temp-slider" min="10" max="50" step="0.5" value="24.1" oninput="checkAll()"> 
-      <span id="temp-val">24.1</span> <span id="temp-msg"></span>
-    </p>
-    <p>
-      Level (L): 
-      <input type="range" id="level-slider" min="20" max="37.5" step="0.1" value="36.8" oninput="checkAll()"> 
-      <span id="level-val">36.8</span> <span id="level-msg"></span>
-    </p>
-    <p>
-      TAN (g/day): 
-      <input type="range" id="tan-slider" min="0" max="0.5" step="0.01" value="0.21" oninput="checkAll()"> 
-      <span id="tan-val">0.21</span> <span id="tan-msg"></span>
-    </p>
+<div class="health-bar-wrap">
+  <span class="health-label">System health</span>
+  <div class="health-track">
+    <div class="health-fill" id="health-fill" style="width:100%; background:#1D9E75;"></div>
+  </div>
+  <span class="health-score" id="health-score">100%</span>
+  <span class="health-status status-ok" id="health-status">All systems normal</span>
+</div>
+
+<div class="main">
+
+  <div class="section-label" style="margin-top:0;">Live sensor readings</div>
+
+  <div class="demo-bar">
+    <span class="demo-label">Demo controls:</span>
+    <button class="btn btn-danger" onclick="simulateAlert('ph')">Trigger pH alert</button>
+    <button class="btn btn-danger" onclick="simulateAlert('temp')">Trigger temp alert</button>
+    <button class="btn btn-danger" onclick="simulateAlert('tan')">Trigger TAN alert</button>
+    <button class="btn btn-danger" onclick="simulateAlert('level')">Trigger level alert</button>
+    <button class="btn btn-danger" onclick="simulateAlert('all')">Trigger all alerts</button>
+    <button class="btn btn-success" onclick="resetAll()">Reset to normal</button>
+    <button class="btn btn-primary" id="pause-btn" onclick="togglePause()">Pause live</button>
   </div>
 
-  <div class="section">
-    <h3>Constraints Checklist</h3>
-    <ul>
-      <li>pH in safe range (6.5 - 8.5): <span id="c-ph" class="green">PASS</span></li>
-      <li>Temperature limit (< 40°C): <span id="c-temp" class="green">PASS</span></li>
-      <li>Water level (>= 30L): <span id="c-level" class="green">PASS</span></li>
-      <li>TAN limit (< 0.27): <span id="c-tan" class="green">PASS</span></li>
-      <li>Tank volume (37.5L): <span class="green">PASS</span></li>
-      <li>Energy (Solar powered): <span class="green">PASS</span></li>
-    </ul>
+  <div class="sensor-grid">
+    <div class="sensor-card" id="card-ph">
+      <div class="sensor-name">pH level</div>
+      <div><span class="sensor-value" id="ph-val">7.2</span></div>
+      <div class="sensor-range">Target: 6.5 – 8.5</div>
+      <div class="sensor-status status-ok" id="ph-status"><div class="sdot sdot-ok" id="ph-dot"></div><span id="ph-label">Normal</span></div>
+      <div class="progress-track"><div class="progress-fill fill-ok" id="ph-bar" style="width:60%"></div></div>
+    </div>
+    <div class="sensor-card" id="card-temp">
+      <div class="sensor-name">Water temperature</div>
+      <div><span class="sensor-value" id="temp-val">24.1</span><span class="sensor-unit">°C</span></div>
+      <div class="sensor-range">Target: below 40°C</div>
+      <div class="sensor-status status-ok" id="temp-status"><div class="sdot sdot-ok" id="temp-dot"></div><span id="temp-label">Normal</span></div>
+      <div class="progress-track"><div class="progress-fill fill-ok" id="temp-bar" style="width:55%"></div></div>
+    </div>
+    <div class="sensor-card" id="card-level">
+      <div class="sensor-name">Water level</div>
+      <div><span class="sensor-value" id="level-val">36.8</span><span class="sensor-unit">L</span></div>
+      <div class="sensor-range">Target: 37.5 L tank</div>
+      <div class="sensor-status status-ok" id="level-status"><div class="sdot sdot-ok" id="level-dot"></div><span id="level-label">Normal</span></div>
+      <div class="progress-track"><div class="progress-fill fill-ok" id="level-bar" style="width:98%"></div></div>
+    </div>
+    <div class="sensor-card" id="card-tan">
+      <div class="sensor-name">TAN — ammonia</div>
+      <div><span class="sensor-value" id="tan-val">0.21</span><span class="sensor-unit">g/day</span></div>
+      <div class="sensor-range">Target: below 0.27 g/day</div>
+      <div class="sensor-status status-ok" id="tan-status"><div class="sdot sdot-ok" id="tan-dot"></div><span id="tan-label">Normal</span></div>
+      <div class="progress-track"><div class="progress-fill fill-ok" id="tan-bar" style="width:78%"></div></div>
+    </div>
   </div>
 
-  <div class="section">
-    <h3>Fish Growth Calculator</h3>
-    <p>Days elapsed: <input type="number" id="days" value="60" oninput="doFishMath()"></p>
-    <p>Current weight: <span id="fish-weight">0</span> g</p>
-    <p>Days until harvest (50g): <span id="harvest-days">0</span></p>
+  <div class="slider-section">
+    <div class="slider-title">Manual override — drag to set sensor values</div>
+    <div class="slider-grid">
+      <div class="slider-row">
+        <span class="slider-name">pH</span>
+        <span class="slider-val" id="sl-ph-val">7.2</span>
+        <input type="range" id="sl-ph" min="5.0" max="10.0" step="0.1" value="7.2" oninput="manualSet('ph', this.value)">
+        <span style="font-size:11px;color:#9ca3af;">Safe zone: 6.5 – 8.5 (red outside)</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-name">Temperature (°C)</span>
+        <span class="slider-val" id="sl-temp-val">24.1</span>
+        <input type="range" id="sl-temp" min="10" max="50" step="0.5" value="24.1" oninput="manualSet('temp', this.value)">
+        <span style="font-size:11px;color:#9ca3af;">Safe zone: below 40°C (red above)</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-name">Water level (L)</span>
+        <span class="slider-val" id="sl-level-val">36.8</span>
+        <input type="range" id="sl-level" min="20" max="37.5" step="0.1" value="36.8" oninput="manualSet('level', this.value)">
+        <span style="font-size:11px;color:#9ca3af;">Tank capacity: 37.5 L (red below 30 L)</span>
+      </div>
+      <div class="slider-row">
+        <span class="slider-name">TAN (g/day)</span>
+        <span class="slider-val" id="sl-tan-val">0.21</span>
+        <input type="range" id="sl-tan" min="0.00" max="0.50" step="0.01" value="0.21" oninput="manualSet('tan', this.value)">
+        <span style="font-size:11px;color:#9ca3af;">Limit: 0.27 g/day (red above)</span>
+      </div>
+    </div>
   </div>
+
+  <div class="section-label">Constraints compliance</div>
+  <div class="constraints-card">
+    <div class="constraints-header">
+      <span class="constraints-title">Engineering constraints — pass/fail</span>
+      <span class="pass-count" id="pass-count">9 / 9 passing</span>
+    </div>
+    <table class="constraints-table">
+      <thead>
+        <tr>
+          <th>Constraint</th>
+          <th>Target</th>
+          <th>Current value</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="constraints-body">
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-label">Calculators</div>
+  <div class="two-col">
+    <div class="calc-card">
+      <div class="calc-title">Fish growth calculator</div>
+      <div class="input-row">
+        <label>Days elapsed</label>
+        <input type="number" id="days-input" value="60" min="0" max="300" />
+      </div>
+      <div class="result-box">
+        <span class="result-label">Current fish weight</span>
+        <span class="result-value" id="fish-weight">—</span>
+      </div>
+      <div class="result-box">
+        <span class="result-label">Days until harvest (50g)</span>
+        <span class="result-value" id="days-harvest">—</span>
+      </div>
+      <div class="result-box">
+        <span class="result-label">Estimated harvest date</span>
+        <span class="result-value" id="harvest-date" style="font-size:15px;">—</span>
+      </div>
+      <div class="formula-note">W = 5 × e^(0.015 × days) — 1.5% daily growth rate — harvest at 50 g</div>
+    </div>
+    <div class="calc-card">
+      <div class="calc-title">Daily water makeup</div>
+      <table class="water-table">
+        <tr><td>Evaporation loss</td><td>0.750 L</td></tr>
+        <tr><td>Flush loss</td><td>0.536 L</td></tr>
+        <tr class="total-row"><td>Total daily makeup</td><td>1.286 L</td></tr>
+      </table>
+      <div style="margin-top:1rem;">
+        <div class="result-box">
+          <span class="result-label">Constraint limit</span>
+          <span class="result-value">1.286 L/day</span>
+        </div>
+        <div class="result-box">
+          <span class="result-label">Status</span>
+          <span class="result-value" style="font-size:14px; color:#0F6E56;">Exactly at limit</span>
+        </div>
+        <div class="result-box">
+          <span class="result-label">Tank (50×50×15 cm)</span>
+          <span class="result-value">37.5 L</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">System event log</div>
+  <div class="log-card">
+    <div class="log-title">Recent events</div>
+    <div id="log-container"></div>
+  </div>
+
+</div>
+
+<div class="footer">AquaControl v2.0 — ENG SCI 1050 Aquaponics Project — Western University 2026</div>
 
 <script>
-// big function to check everything when a slider moves
-function checkAll() {
-  // get current slider values
-  var ph = document.getElementById("ph-slider").value;
-  var temp = document.getElementById("temp-slider").value;
-  var level = document.getElementById("level-slider").value;
-  var tan = document.getElementById("tan-slider").value;
+let ph = 7.2, temp = 24.1, level = 36.8, tan = 0.21;
+let paused = false;
+let manualMode = { ph: false, temp: false, level: false, tan: false };
+const logs = [];
 
-  // update the text on screen so it matches
-  document.getElementById("ph-val").innerHTML = ph;
-  document.getElementById("temp-val").innerHTML = temp;
-  document.getElementById("level-val").innerHTML = level;
-  document.getElementById("tan-val").innerHTML = tan;
+function pad(n){ return String(n).padStart(2,'0'); }
+function ts(){ const d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
 
-  var failed = false; // flag to track if anything is broken
+function addLog(msg, type){
+  logs.unshift({time:ts(), msg, type});
+  if(logs.length>12) logs.pop();
+  renderLog();
+}
 
-  // check ph constraint
-  if (ph < 6.5 || ph > 8.5) { 
-    document.getElementById("ph-msg").innerHTML = "- FAIL"; 
-    document.getElementById("ph-msg").className = "red"; 
-    document.getElementById("c-ph").innerHTML = "FAIL"; 
-    document.getElementById("c-ph").className = "red"; 
-    failed = true; 
-  } else { 
-    document.getElementById("ph-msg").innerHTML = "- OK"; 
-    document.getElementById("ph-msg").className = "green"; 
-    document.getElementById("c-ph").innerHTML = "PASS"; 
-    document.getElementById("c-ph").className = "green"; 
-  }
+function renderLog(){
+  document.getElementById('log-container').innerHTML = logs.map(l=>
+    `<div class="log-entry"><span class="log-time">${l.time}</span><span class="log-msg ${l.type==='warn'?'log-warn':l.type==='ok'?'log-ok':'log-info'}">${l.msg}</span></div>`
+  ).join('');
+}
 
-  // copy pasted for temp
-  if (temp >= 40) { 
-    document.getElementById("temp-msg").innerHTML = "- FAIL"; 
-    document.getElementById("temp-msg").className = "red"; 
-    document.getElementById("c-temp").innerHTML = "FAIL"; 
-    document.getElementById("c-temp").className = "red"; 
-    failed = true; 
-  } else { 
-    document.getElementById("temp-msg").innerHTML = "- OK"; 
-    document.getElementById("temp-msg").className = "green"; 
-    document.getElementById("c-temp").innerHTML = "PASS"; 
-    document.getElementById("c-temp").className = "green"; 
-  }
+const prevWarn = {ph:false,temp:false,level:false,tan:false};
 
-  // same for water level
-  if (level < 30) { 
-    document.getElementById("level-msg").innerHTML = "- FAIL"; 
-    document.getElementById("level-msg").className = "red"; 
-    document.getElementById("c-level").innerHTML = "FAIL"; 
-    document.getElementById("c-level").className = "red"; 
-    failed = true; 
-  } else { 
-    document.getElementById("level-msg").innerHTML = "- OK"; 
-    document.getElementById("level-msg").className = "green"; 
-    document.getElementById("c-level").innerHTML = "PASS"; 
-    document.getElementById("c-level").className = "green"; 
-  }
-
-  // tan check
-  if (tan >= 0.27) { 
-    document.getElementById("tan-msg").innerHTML = "- FAIL"; 
-    document.getElementById("tan-msg").className = "red"; 
-    document.getElementById("c-tan").innerHTML = "FAIL"; 
-    document.getElementById("c-tan").className = "red"; 
-    failed = true; 
-  } else { 
-    document.getElementById("tan-msg").innerHTML = "- OK"; 
-    document.getElementById("tan-msg").className = "green"; 
-    document.getElementById("c-tan").innerHTML = "PASS"; 
-    document.getElementById("c-tan").className = "green"; 
-  }
-
-  // if any test failed, make the main banner red
-  if (failed) {
-    document.getElementById("sys-status").innerHTML = "WARNING - CHECK SENSORS";
-    document.getElementById("sys-status").className = "red";
+function setCard(id, ok, name){
+  const card = document.getElementById('card-'+id);
+  const status = document.getElementById(id+'-status');
+  const dot = document.getElementById(id+'-dot');
+  const lbl = document.getElementById(id+'-label');
+  const bar = document.getElementById(id+'-bar');
+  if(ok){
+    card.classList.remove('warn');
+    status.className='sensor-status status-ok';
+    dot.className='sdot sdot-ok';
+    lbl.textContent='Normal';
+    bar.className='progress-fill fill-ok';
+    if(prevWarn[id]){ addLog(name+' returned to normal range.','ok'); }
+    prevWarn[id]=false;
   } else {
-    document.getElementById("sys-status").innerHTML = "ALL SYSTEMS NORMAL";
-    document.getElementById("sys-status").className = "green";
+    card.classList.add('warn');
+    status.className='sensor-status status-warn';
+    dot.className='sdot sdot-warn';
+    lbl.textContent='OUT OF RANGE';
+    bar.className='progress-fill fill-warn';
+    if(!prevWarn[id]){ addLog('ALERT: '+name+' is out of range — check system immediately.','warn'); }
+    prevWarn[id]=true;
   }
 }
 
-// calc fish weight using formula from class
-function doFishMath() {
-  var d = document.getElementById("days").value;
-  var w = 5 * Math.exp(0.015 * d); // math.exp is e^x
-  document.getElementById("fish-weight").innerHTML = w.toFixed(1);
-  
-  // figuring out days left until 50g
-  var totalDays = Math.log(10) / 0.015;
-  var left = Math.round(totalDays - d);
-  
-  if (left <= 0) {
-    document.getElementById("harvest-days").innerHTML = "Ready to harvest!";
-  } else {
-    document.getElementById("harvest-days").innerHTML = left + " days";
+function clamp(v,a,b){ return Math.min(Math.max(v,a),b); }
+
+function updateDisplay(){
+  document.getElementById('ph-val').textContent = ph.toFixed(1);
+  document.getElementById('temp-val').textContent = temp.toFixed(1);
+  document.getElementById('level-val').textContent = level.toFixed(1);
+  document.getElementById('tan-val').textContent = tan.toFixed(2);
+
+  document.getElementById('ph-bar').style.width = ((ph-5)/(10-5)*100).toFixed(1)+'%';
+  document.getElementById('temp-bar').style.width = (temp/50*100).toFixed(1)+'%';
+  document.getElementById('level-bar').style.width = (level/37.5*100).toFixed(1)+'%';
+  document.getElementById('tan-bar').style.width = (tan/0.5*100).toFixed(1)+'%';
+
+  const phOk = ph>=6.5&&ph<=8.5;
+  const tempOk = temp<40;
+  const levelOk = level>=30;
+  const tanOk = tan<0.27;
+
+  setCard('ph', phOk, 'pH');
+  setCard('temp', tempOk, 'Temperature');
+  setCard('level', levelOk, 'Water level');
+  setCard('tan', tanOk, 'TAN');
+
+  updateHealth([phOk,tempOk,levelOk,tanOk]);
+  updateConstraints();
+}
+
+function updateHealth(checks){
+  const passing = checks.filter(Boolean).length;
+  const pct = Math.round(passing/checks.length*100);
+  const fill = document.getElementById('health-fill');
+  const score = document.getElementById('health-score');
+  const status = document.getElementById('health-status');
+  fill.style.width = pct+'%';
+  fill.style.background = pct===100?'#1D9E75':pct>=75?'#f59e0b':'#E24B4A';
+  score.textContent = pct+'%';
+  score.style.color = pct===100?'#0F6E56':pct>=75?'#92400e':'#991b1b';
+  status.textContent = pct===100?'All systems normal':pct>=75?'Minor issues detected':'Critical issues — action required';
+  status.className = 'health-status '+(pct===100?'status-ok':pct>=75?'':'status-warn');
+}
+
+const constraintDefs = [
+  { name:'pH in safe range', target:'6.5 – 8.5', check:()=>ph>=6.5&&ph<=8.5, actual:()=>ph.toFixed(1) },
+  { name:'Temperature below limit', target:'< 40°C', check:()=>temp<40, actual:()=>temp.toFixed(1)+'°C' },
+  { name:'Water level adequate', target:'≥ 30 L', check:()=>level>=30, actual:()=>level.toFixed(1)+' L' },
+  { name:'TAN within limit', target:'< 0.27 g/day', check:()=>tan<0.27, actual:()=>tan.toFixed(2)+' g/day' },
+  { name:'Tank volume sufficient', target:'37.5 L (50×50×15 cm)', check:()=>true, actual:()=>'37.5 L' },
+  { name:'Daily water makeup', target:'≤ 1.286 L/day', check:()=>true, actual:()=>'1.286 L' },
+  { name:'Bio-filter safety factor', target:'≥ 10x', check:()=>true, actual:()=>'10.4x' },
+  { name:'Fish growth on track', target:'50g by day 153.5', check:()=>true, actual:()=>'W=5×e^(0.015t)' },
+  { name:'Energy self-sufficient', target:'≥ 40% solar', check:()=>true, actual:()=>'Solar powered' },
+];
+
+function updateConstraints(){
+  const passing = constraintDefs.filter(c=>c.check()).length;
+  document.getElementById('pass-count').textContent = passing+' / '+constraintDefs.length+' passing';
+  document.getElementById('pass-count').style.background = passing===constraintDefs.length?'#E1F5EE':'#FCEBEB';
+  document.getElementById('pass-count').style.color = passing===constraintDefs.length?'#0F6E56':'#A32D2D';
+  document.getElementById('constraints-body').innerHTML = constraintDefs.map(c=>{
+    const ok = c.check();
+    return `<tr class="${ok?'':'fail-row'}">
+      <td class="constraint-name">${c.name}</td>
+      <td class="constraint-target">${c.target}</td>
+      <td class="constraint-actual ${ok?'actual-ok':'actual-fail'}">${c.actual()}</td>
+      <td><span class="${ok?'pass-badge':'fail-badge'}">${ok?'PASS':'FAIL'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function manualSet(id, val){
+  paused = true;
+  document.getElementById('pause-btn').textContent = 'Resume live';
+  document.getElementById('live-dot').className='live-dot paused';
+  document.getElementById('live-text').textContent='Paused';
+  const v = parseFloat(val);
+  if(id==='ph'){ ph=v; document.getElementById('sl-ph-val').textContent=v.toFixed(1); }
+  if(id==='temp'){ temp=v; document.getElementById('sl-temp-val').textContent=v.toFixed(1); }
+  if(id==='level'){ level=v; document.getElementById('sl-level-val').textContent=v.toFixed(1); }
+  if(id==='tan'){ tan=v; document.getElementById('sl-tan-val').textContent=v.toFixed(2); }
+  updateDisplay();
+}
+
+function syncSliders(){
+  document.getElementById('sl-ph').value=ph;
+  document.getElementById('sl-ph-val').textContent=ph.toFixed(1);
+  document.getElementById('sl-temp').value=temp;
+  document.getElementById('sl-temp-val').textContent=temp.toFixed(1);
+  document.getElementById('sl-level').value=level;
+  document.getElementById('sl-level-val').textContent=level.toFixed(1);
+  document.getElementById('sl-tan').value=tan;
+  document.getElementById('sl-tan-val').textContent=tan.toFixed(2);
+}
+
+function simulateAlert(id){
+  paused = true;
+  document.getElementById('pause-btn').textContent='Resume live';
+  document.getElementById('live-dot').className='live-dot paused';
+  document.getElementById('live-text').textContent='Demo mode';
+  if(id==='ph'||id==='all'){ ph=9.4; }
+  if(id==='temp'||id==='all'){ temp=42.3; }
+  if(id==='level'||id==='all'){ level=24.1; }
+  if(id==='tan'||id==='all'){ tan=0.33; }
+  syncSliders();
+  updateDisplay();
+}
+
+function resetAll(){
+  ph=7.2; temp=24.1; level=36.8; tan=0.21;
+  paused=false;
+  document.getElementById('pause-btn').textContent='Pause live';
+  document.getElementById('live-dot').className='live-dot';
+  document.getElementById('live-text').textContent='Live';
+  syncSliders();
+  updateDisplay();
+  addLog('System reset to normal operating values.','ok');
+}
+
+function togglePause(){
+  paused=!paused;
+  document.getElementById('pause-btn').textContent=paused?'Resume live':'Pause live';
+  document.getElementById('live-dot').className=paused?'live-dot paused':'live-dot';
+  document.getElementById('live-text').textContent=paused?'Paused':'Live';
+}
+
+function tick(){
+  if(!paused){
+    ph=clamp(ph+(Math.random()-0.5)*0.1,5.5,9.5);
+    temp=clamp(temp+(Math.random()-0.5)*0.5,15,45);
+    level=clamp(level+(Math.random()-0.5)*0.15,28,37.5);
+    tan=clamp(tan+(Math.random()-0.5)*0.01,0.08,0.38);
+    syncSliders();
+    updateDisplay();
   }
 }
 
-// gotta run these once at the start or it looks blank
-checkAll();
-doFishMath();
+function updateFish(){
+  const days=parseFloat(document.getElementById('days-input').value)||0;
+  const w=5*Math.exp(0.015*days);
+  document.getElementById('fish-weight').textContent=w.toFixed(1)+' g';
+  const totalDays=Math.log(10)/0.015;
+  const left=totalDays-days;
+  if(w>=50){
+    document.getElementById('days-harvest').textContent='Ready to harvest!';
+    document.getElementById('harvest-date').textContent='Now';
+  } else {
+    const dl=Math.max(0,Math.round(left));
+    document.getElementById('days-harvest').textContent=dl+' days';
+    const hd=new Date(); hd.setDate(hd.getDate()+dl);
+    document.getElementById('harvest-date').textContent=hd.toLocaleDateString('en-CA',{month:'short',day:'numeric',year:'numeric'});
+  }
+}
+
+document.getElementById('days-input').addEventListener('input', updateFish);
+
+addLog('System initialised. All sensors online.','ok');
+addLog('Monitoring pH, temperature, water level and TAN.','info');
+addLog('Bio-filter safety factor: 10.4x — within spec.','ok');
+updateFish();
+updateDisplay();
+setInterval(tick, 2500);
 </script>
-
 </body>
 </html>
-
