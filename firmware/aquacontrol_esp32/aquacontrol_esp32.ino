@@ -13,6 +13,10 @@
      2. Wi-Fi / MQTT  — optional. Set USE_WIFI to 1 and fill in your creds.
         The dashboard's "Connect via Wi-Fi (MQTT)" button subscribes to the
         same topic.
+     3. Wi-Fi / HTTP  — optional. Set USE_HTTP 1 to POST readings to the
+        AquaControl Node backend (/server) at /api/telemetry. The backend
+        persists history and the dashboard's "Connect to server" button shows
+        live data + trend charts. This is the recommended path for a deploy.
 
    ---------------------------------------------------------------------------
    SENSORS (swap pins/params to match your build)
@@ -38,7 +42,9 @@
 // ---------------------------------------------------------------------------
 // CONFIG
 // ---------------------------------------------------------------------------
-#define USE_WIFI         0          // 1 = also publish over MQTT
+#define USE_WIFI         0          // 1 = enable Wi-Fi (required for MQTT/HTTP)
+#define USE_MQTT         0          // 1 = publish over MQTT  (needs USE_WIFI)
+#define USE_HTTP         0          // 1 = POST to Node backend (needs USE_WIFI)
 #define TAN_FROM_PROBE   0          // 1 = read analog ammonia probe; 0 = estimate
 
 // Pins
@@ -73,14 +79,23 @@ DallasTemperature ds18b20(&oneWire);
 
 #if USE_WIFI
   #include <WiFi.h>
-  #include <PubSubClient.h>
   const char* WIFI_SSID   = "YOUR_WIFI";
   const char* WIFI_PASS   = "YOUR_PASS";
+#endif
+#if USE_WIFI && USE_MQTT
+  #include <PubSubClient.h>
   const char* MQTT_HOST   = "broker.hivemq.com";
   const int   MQTT_PORT   = 1883;
   const char* MQTT_TOPIC  = "aquacontrol/london/telemetry";
   WiFiClient   net;
   PubSubClient mqtt(net);
+#endif
+#if USE_WIFI && USE_HTTP
+  #include <HTTPClient.h>
+  // Your deployed backend, e.g. https://aquacontrol.onrender.com  (or http://<pc-ip>:8080)
+  const char* HTTP_URL    = "http://192.168.1.50:8080/api/telemetry";
+  const char* HTTP_APIKEY = "";       // set if the server has INGEST_KEY
+  const char* DEVICE_ID   = "esp32-tank-1";
 #endif
 
 unsigned long lastPublish = 0;
@@ -160,11 +175,28 @@ void ensureWifi() {
   unsigned long t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) delay(200);
 }
+#endif
+#if USE_WIFI && USE_MQTT
 void ensureMqtt() {
   if (mqtt.connected()) return;
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   String id = "aquacontrol-" + String((uint32_t)ESP.getEfuseMac(), HEX);
   mqtt.connect(id.c_str());
+}
+#endif
+#if USE_WIFI && USE_HTTP
+void postHttp(const String& json) {
+  if (WiFi.status() != WL_CONNECTED) return;
+  HTTPClient http;
+  http.begin(HTTP_URL);
+  http.addHeader("Content-Type", "application/json");
+  if (HTTP_APIKEY[0]) http.addHeader("x-api-key", HTTP_APIKEY);
+  // wrap with device id so the server can tag the row
+  String body = json.substring(0, json.length() - 1);   // drop closing brace
+  body += String(",\"device\":\"") + DEVICE_ID + "\"}";
+  int code = http.POST(body);
+  if (code <= 0) Serial.println(String("# HTTP POST failed: ") + http.errorToString(code));
+  http.end();
 }
 #endif
 
@@ -185,6 +217,8 @@ void setup() {
 void loop() {
 #if USE_WIFI
   ensureWifi();
+#endif
+#if USE_WIFI && USE_MQTT
   ensureMqtt();
   mqtt.loop();
 #endif
@@ -203,8 +237,13 @@ void loop() {
     Serial.println(json);
 
     // 2) Wi-Fi / MQTT
-#if USE_WIFI
+#if USE_WIFI && USE_MQTT
     if (mqtt.connected()) mqtt.publish(MQTT_TOPIC, json.c_str());
+#endif
+
+    // 3) Wi-Fi / HTTP -> Node backend
+#if USE_WIFI && USE_HTTP
+    postHttp(json);
 #endif
   }
 }

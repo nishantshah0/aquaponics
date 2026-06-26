@@ -18,13 +18,57 @@ two different ways, with a physics‑flavoured simulation as the fallback.
 - **Design calculators** — fish‑growth model `W = 5·e^(0.015·t)`, daily water‑makeup
   mass balance, and nitrogen / bio‑filter sizing.
 - **CSV export** of everything the dashboard has logged this session.
-- **Three data sources**, chosen at runtime:
+- **Four data sources**, chosen at runtime:
 
 | Source | How | When to use |
 |--------|-----|-------------|
+| **Server** | Node backend persists readings + streams them over WebSocket | Trend history, remote viewing, the full‑stack demo |
 | **USB (Web Serial)** | ESP32/Arduino plugged in over USB | Bench demo, judging table |
-| **Wi‑Fi (MQTT)** | ESP32 publishes to an MQTT broker | Wireless / remote tank |
+| **Wi‑Fi (MQTT)** | ESP32 publishes to an MQTT broker | Wireless, no backend |
 | **Simulation** | Built‑in, runs when nothing is connected | No hardware on hand |
+
+---
+
+## Full‑stack: the backend (`/server`)
+
+A small Node server (`server/server.js`) makes this a real full‑stack app:
+
+- **Ingest** — the ESP32 `POST`s readings to `/api/telemetry`.
+- **Persist** — every reading is stored in **SQLite** (Node's built‑in `node:sqlite` —
+  no native build, no external DB).
+- **Stream** — each new reading is pushed to every open dashboard over **WebSocket**,
+  so multiple people see the tank live, in real time.
+- **History** — `GET /api/history?hours=24` returns (down‑sampled) trend data that
+  powers the in‑dashboard charts; data survives restarts and page reloads.
+- **Serve** — it also serves the dashboard itself, so the whole thing is one deploy.
+
+```bash
+cd server
+npm install
+npm run seed     # optional: fill ~24h of demo data so charts aren't empty
+npm start        # http://localhost:8080  (dashboard + API + WebSocket)
+```
+
+Then open the dashboard, click **Connect to server**, and you get live readings plus
+the trend chart. Point the ESP32 at it by setting `USE_WIFI 1` and `USE_HTTP 1` in the
+firmware.
+
+### API
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| `POST` | `/api/telemetry` | Ingest a reading `{ph,temp,level,tan,device?}` |
+| `GET`  | `/api/history?hours=24&max=1500` | Trend data (down‑sampled) |
+| `GET`  | `/api/latest` | Most recent reading |
+| `GET`  | `/api/health` | `{ok, readings, uptime_s}` |
+| `WS`   | `/ws` | Live push of every new reading |
+
+Set `INGEST_KEY` to require an `x-api-key` header on writes. CORS is open on reads so a
+dashboard hosted elsewhere (GitHub Pages) can pull history from a deployed backend.
+
+### Deploy (free)
+`server/Dockerfile` and `server/render.yaml` are included. On [Render](https://render.com):
+**New + → Blueprint → point at this repo**. Node 22+ is required (for `node:sqlite`).
 
 ---
 
@@ -70,7 +114,9 @@ The device streams **newline‑delimited JSON**, one reading per line, at **1152
 Sketch: [`firmware/aquacontrol_esp32/aquacontrol_esp32.ino`](firmware/aquacontrol_esp32/aquacontrol_esp32.ino)
 
 **Board:** ESP32 Dev Module (Espressif esp32 core).
-**Libraries:** `OneWire`, `DallasTemperature`, and `PubSubClient` (only if `USE_WIFI 1`).
+**Libraries:** `OneWire`, `DallasTemperature`, and `PubSubClient` (only if `USE_MQTT 1`).
+**Transports:** Serial/USB is always on. Set `USE_WIFI 1` plus either `USE_HTTP 1`
+(POST to the backend — recommended) or `USE_MQTT 1` (publish to a broker).
 
 ### Default wiring
 
@@ -102,9 +148,23 @@ simulation controls let you force alert conditions for a walkthrough.
 
 ---
 
+## Architecture
+
+```
+  ESP32 sensors ──USB serial──────────────┐
+        │                                  ├──▶  AquaControl dashboard (index.html)
+        ├──Wi-Fi MQTT──▶ broker ───────────┤        live cards · sparklines · trend chart
+        │                                  │
+        └──Wi-Fi HTTP──▶ Node backend ─────┘
+                          (Express + ws + SQLite)
+                          persists history, broadcasts over WebSocket
+```
+
 ## Tech notes
-- Pure HTML/CSS/JS, single file, zero dependencies (MQTT.js is lazy‑loaded from a CDN
-  only if you use the Wi‑Fi path).
-- `applyReading({ph,temp,level,tan})` is the single entry point all three sources feed
-  into, so adding a fourth transport is a few lines.
+- **Frontend:** pure HTML/CSS/JS, single file, no build step, no frontend deps
+  (MQTT.js is lazy‑loaded from a CDN only if you use the Wi‑Fi/MQTT path). Charts and
+  sparklines are hand‑drawn on `<canvas>`.
+- **Backend:** Node + Express + `ws` + `node:sqlite` (built in — no native modules).
+- `applyReading({ph,temp,level,tan})` is the single entry point all four sources feed
+  into, so adding another transport is a few lines.
 - Web Serial is a Chromium‑only API and needs a secure context (`https`/`localhost`).

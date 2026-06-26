@@ -1,0 +1,22 @@
+# One-click deploy to Render (https://render.com) — free tier.
+# In the Render dashboard: New + > Blueprint > point at this repo.
+services:
+  - type: web
+    name: aquacontrol
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_VERSION
+        value: "22.5.0"
+      - key: DB_PATH
+        value: /var/data/aquacontrol.db
+      # Set an ingest key in the dashboard to require x-api-key on POSTs:
+      # - key: INGEST_KEY
+      #   generateValue: true
+    disk:
+      name: aquacontrol-data
+      mountPath: /var/data
+      sizeGB: 1

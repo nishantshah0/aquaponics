@@ -70,6 +70,20 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-usb:hover { background: #1d4ed8; color: white; }
 .btn-wifi { background: #7c3aed; color: white; border-color: #7c3aed; }
 .btn-wifi:hover { background: #6d28d9; color: white; }
+.btn-server { background: #0F6E56; color: white; border-color: #0F6E56; }
+.btn-server:hover { background: #0b5946; color: white; }
+
+/* Trend chart */
+.source-server { background: #E1F5EE; border-color: #9FE1CB; color: #0F6E56; }
+.chart-card { background: white; border: 1px solid #d0ead9; border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; }
+.chart-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.chart-title { font-size: 15px; font-weight: 700; color: #0F6E56; }
+.chart-tabs { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.chart-tab { padding: 5px 12px; border-radius: 8px; border: 1px solid #d0ead9; background: white; font-size: 12px; font-weight: 600; cursor: pointer; color: #6b7280; font-family: inherit; }
+.chart-tab.active { background: #1D9E75; color: white; border-color: #1D9E75; }
+.chart-wrap { width: 100%; height: 220px; position: relative; }
+.chart-canvas { width: 100%; height: 220px; display: block; }
+.chart-empty { font-size: 13px; color: #9ca3af; padding: 60px 0; text-align: center; }
 
 .sensor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 1.5rem; }
 .sensor-card { background: white; border-radius: 14px; padding: 1.25rem 1.5rem; border: 1.5px solid #d0ead9; position: relative; overflow: hidden; transition: border-color 0.3s, background 0.3s; }
@@ -201,10 +215,24 @@ input[type=range] { width: 100%; accent-color: #1D9E75; cursor: pointer; }
         <span class="conn-state cs-off" id="conn-state">Not connected — running simulation</span>
       </div>
       <div class="conn-actions">
+        <button class="btn btn-server" id="btn-server" onclick="toggleServerRow()">Connect to server</button>
         <button class="btn btn-usb" id="btn-usb" onclick="connectSerial()">Connect via USB</button>
         <button class="btn btn-wifi" id="btn-wifi" onclick="toggleMqttRow()">Connect via Wi-Fi (MQTT)</button>
         <button class="btn btn-danger" id="btn-disconnect" onclick="disconnectHardware()" style="display:none;">Disconnect</button>
       </div>
+    </div>
+
+    <div class="mqtt-row" id="server-row">
+      <label>Server</label>
+      <input type="text" id="server-url" value="http://localhost:8080" size="30">
+      <label>History</label>
+      <select id="server-hours" style="padding:7px 10px;border:1px solid #d0ead9;border-radius:8px;font-size:12.5px;">
+        <option value="1">1 h</option>
+        <option value="6">6 h</option>
+        <option value="24" selected>24 h</option>
+        <option value="168">7 d</option>
+      </select>
+      <button class="btn btn-server" onclick="connectServer()">Connect</button>
     </div>
 
     <div class="mqtt-row" id="mqtt-row">
@@ -216,10 +244,10 @@ input[type=range] { width: 100%; accent-color: #1D9E75; cursor: pointer; }
     </div>
 
     <div class="conn-sub" id="conn-sub">
-      Plug an ESP32/Arduino over USB and hit <b>Connect via USB</b> (Chrome or Edge), or subscribe to your device's MQTT
-      feed for wireless telemetry. The device should stream newline-delimited JSON, e.g.
-      <code>{"ph":7.21,"temp":24.1,"level":1048,"tan":8.4}</code> at 115200 baud.
-      Firmware + wiring are in <code>/firmware</code>. With no device connected, the dashboard runs a physics-based simulation.
+      <b>Server</b> (recommended) streams live readings <i>and</i> persisted history from the Node backend in <code>/server</code> —
+      use it for the trend chart and remote viewing. <b>USB</b> reads an ESP32 directly over Web Serial (Chrome/Edge).
+      <b>Wi-Fi (MQTT)</b> subscribes to a broker. Devices stream JSON like
+      <code>{"ph":7.21,"temp":24.1,"level":1048,"tan":8.4}</code>. With nothing connected, the dashboard runs a physics-based simulation.
     </div>
   </div>
 
@@ -268,6 +296,24 @@ input[type=range] { width: 100%; accent-color: #1D9E75; cursor: pointer; }
       <canvas class="spark" id="spark-tan"></canvas>
       <div class="sensor-status status-ok" id="tan-status"><div class="sdot sdot-ok" id="tan-dot"></div><span id="tan-label">Normal</span></div>
       <div class="progress-track"><div class="progress-fill fill-ok" id="tan-bar" style="width:78%"></div></div>
+    </div>
+  </div>
+
+  <div class="section-label">Trend history</div>
+  <div class="chart-card">
+    <div class="chart-head">
+      <span class="chart-title">Sensor trend</span>
+      <span class="packet-meta" id="chart-meta"></span>
+      <div class="chart-tabs">
+        <button class="chart-tab active" data-metric="ph" onclick="selectMetric('ph')">pH</button>
+        <button class="chart-tab" data-metric="temp" onclick="selectMetric('temp')">Temp</button>
+        <button class="chart-tab" data-metric="level" onclick="selectMetric('level')">Level</button>
+        <button class="chart-tab" data-metric="tan" onclick="selectMetric('tan')">TAN</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas class="chart-canvas" id="trend-canvas"></canvas>
+      <div class="chart-empty" id="chart-empty">Connect to the server (or let the simulation run) to build a trend history.</div>
     </div>
   </div>
 
@@ -448,6 +494,18 @@ const record = [];             // [{t, ph, temp, level, tan, src}]
 // Hardware handles
 let serialPort = null, serialReader = null, keepReading = false;
 let mqttClient = null;
+let serverWs = null, serverManualClose = false;
+
+// Trend chart state (fed by server history + every live reading)
+let trend = [];               // [{ts, ph, temp, level, tan}]
+let trendMetric = 'ph';
+const TREND_MAX = 4000;
+const metricMeta = {
+  ph:    { label:'pH',          unit:'',       fmt:v=>v.toFixed(2) },
+  temp:  { label:'Temperature', unit:'°C',     fmt:v=>v.toFixed(1) },
+  level: { label:'Water level', unit:'L',      fmt:v=>Math.round(v) },
+  tan:   { label:'TAN',         unit:'g/day',  fmt:v=>v.toFixed(1) },
+};
 
 function pad(n){ return String(n).padStart(2,'0'); }
 function ts(){ const d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds()); }
@@ -630,8 +688,16 @@ function applyReading(r, fromHardware){
   if(typeof r.tan==='number' && isFinite(r.tan)){ tan=r.tan; changed=true; }
   if(!changed) return;
   if(fromHardware){ packetCount++; lastPacketAt=Date.now(); }
+  pushTrend({ ts: (typeof r.ts==='number'? r.ts : Date.now()), ph, temp, level, tan });
   syncSliders();
   updateDisplay(true);
+  drawTrend();
+}
+
+function pushTrend(point){
+  // keep chronological order even if a live point arrives during history load
+  trend.push(point);
+  if(trend.length>TREND_MAX) trend.shift();
 }
 
 /* Parse one line of device output: JSON object, or bare CSV "ph,temp,level,tan". */
@@ -667,28 +733,36 @@ function setSource(s){
   const disc=document.getElementById('btn-disconnect');
   const usb=document.getElementById('btn-usb');
   const wifi=document.getElementById('btn-wifi');
+  const srv=document.getElementById('btn-server');
 
-  badge.className='source-badge '+(s==='serial'?'source-serial':s==='mqtt'?'source-mqtt':'source-sim');
-  if(s==='serial'){
+  badge.className='source-badge '+(s==='serial'?'source-serial':s==='mqtt'?'source-mqtt':s==='server'?'source-server':'source-sim');
+  if(s==='server'){
+    txt.textContent='Server · live + history'; badge.querySelector('.ico').textContent='🛰️';
+    live.className='live-dot hw'; ltxt.textContent='Hardware';
+    cstate.textContent='Connected to backend (WebSocket)'; cstate.className='conn-state cs-on';
+    demo.classList.add('locked'); sliders.classList.add('locked');
+    disc.style.display=''; usb.disabled=true; wifi.disabled=true; srv.disabled=true;
+    paused=false;
+  } else if(s==='serial'){
     txt.textContent='USB · ESP32'; badge.querySelector('.ico').textContent='🔌';
     live.className='live-dot hw'; ltxt.textContent='Hardware';
     cstate.textContent='Connected over USB (Web Serial)'; cstate.className='conn-state cs-on';
     demo.classList.add('locked'); sliders.classList.add('locked');
-    disc.style.display=''; usb.disabled=true; wifi.disabled=true;
+    disc.style.display=''; usb.disabled=true; wifi.disabled=true; srv.disabled=true;
     paused=false;
   } else if(s==='mqtt'){
     txt.textContent='Wi-Fi · MQTT'; badge.querySelector('.ico').textContent='📡';
     live.className='live-dot hw'; ltxt.textContent='Hardware';
     cstate.textContent='Subscribed over MQTT'; cstate.className='conn-state cs-on';
     demo.classList.add('locked'); sliders.classList.add('locked');
-    disc.style.display=''; usb.disabled=true; wifi.disabled=true;
+    disc.style.display=''; usb.disabled=true; wifi.disabled=true; srv.disabled=true;
     paused=false;
   } else {
     txt.textContent='Simulation'; badge.querySelector('.ico').textContent='🧪';
     live.className='live-dot'; ltxt.textContent='Live';
     cstate.textContent='Not connected — running simulation'; cstate.className='conn-state cs-off';
     demo.classList.remove('locked'); sliders.classList.remove('locked');
-    disc.style.display='none'; usb.disabled=false; wifi.disabled=false;
+    disc.style.display='none'; usb.disabled=false; wifi.disabled=false; srv.disabled=false;
   }
 }
 
@@ -810,15 +884,147 @@ async function connectMqtt(){
   }
 }
 
+/* ============================================================
+   SERVER — Node backend: persisted history + live WebSocket
+   ============================================================ */
+function toggleServerRow(){
+  document.getElementById('server-row').classList.toggle('show');
+}
+
+async function connectServer(){
+  let base=document.getElementById('server-url').value.trim().replace(/\/+$/,'');
+  const hours=document.getElementById('server-hours').value;
+  if(!base){ addLog('Enter the server URL.','warn'); return; }
+
+  // 1) Load persisted history for the trend chart.
+  try{
+    addLog('Fetching history from '+base+' …','info');
+    const res=await fetch(base+'/api/history?hours='+hours);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    trend = (data.readings||[]).map(r=>({ ts:r.ts, ph:+r.ph, temp:+r.temp, level:+r.level, tan:+r.tan }))
+                               .filter(p=>isFinite(p.ts));
+    if(trend.length) trend.length=Math.min(trend.length,TREND_MAX);
+    addLog('Loaded '+trend.length+' historical readings ('+hours+'h).','ok');
+    drawTrend();
+  }catch(e){
+    addLog('Could not reach server at '+base+' — is it running?','warn');
+    alert('Failed to reach the AquaControl server at:\n'+base+'\n\nStart it with: cd server && npm install && npm start');
+    return;
+  }
+
+  // 2) Open the live WebSocket.
+  const wsUrl = base.replace(/^http/i,'ws') + '/ws';
+  try{
+    serverManualClose=false;
+    serverWs = new WebSocket(wsUrl);
+    serverWs.onopen = ()=>{
+      setSource('server');
+      packetCount=0; lastPacketAt=0;
+      addLog('Live WebSocket connected — streaming readings.','ok');
+    };
+    serverWs.onmessage = (ev)=>{
+      try{
+        const m=JSON.parse(ev.data);
+        if(m.type==='reading'){ applyReading({ph:+m.ph,temp:+m.temp,level:+m.level,tan:+m.tan,ts:m.ts}, true); }
+      }catch(_){}
+    };
+    serverWs.onerror = ()=>{ addLog('WebSocket error.','warn'); };
+    serverWs.onclose = ()=>{
+      if(!serverManualClose && source==='server'){
+        addLog('Server connection lost — back to simulation.','warn');
+        setSource('sim');
+      }
+    };
+  }catch(e){
+    addLog('Invalid server URL for WebSocket.','warn');
+  }
+}
+
 async function disconnectHardware(){
   keepReading=false;
+  serverManualClose=true;
   if(serialReader){ try{ await serialReader.cancel(); }catch(_){} }
   if(serialPort){ try{ await serialPort.close(); }catch(_){} serialPort=null; }
   if(mqttClient){ try{ mqttClient.end(true); }catch(_){} mqttClient=null; }
+  if(serverWs){ try{ serverWs.close(); }catch(_){} serverWs=null; }
   document.getElementById('packet-meta').textContent='';
   ['ph','temp','level','tan'].forEach(id=>document.getElementById('card-'+id).classList.remove('stale'));
   setSource('sim');
   addLog('Disconnected from hardware — back to simulation.','info');
+}
+
+/* ============================================================
+   TREND CHART
+   ============================================================ */
+function selectMetric(m){
+  trendMetric=m;
+  document.querySelectorAll('.chart-tab').forEach(t=>t.classList.toggle('active', t.dataset.metric===m));
+  drawTrend();
+}
+
+function drawTrend(){
+  const cv=document.getElementById('trend-canvas');
+  const empty=document.getElementById('chart-empty');
+  const meta=document.getElementById('chart-meta');
+  if(!cv) return;
+  const data=trend.filter(p=>isFinite(p[trendMetric]));
+  if(data.length<2){ cv.style.display='none'; empty.style.display='block'; meta.textContent=''; return; }
+  cv.style.display='block'; empty.style.display='none';
+
+  const dpr=window.devicePixelRatio||1;
+  const w=cv.clientWidth||600, h=cv.clientHeight||220;
+  if(cv.width!==w*dpr||cv.height!==h*dpr){ cv.width=w*dpr; cv.height=h*dpr; }
+  const ctx=cv.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  const M={t:14,r:54,b:22,l:10};
+  const x0=M.l, x1=w-M.r, y0=M.t, y1=h-M.b;
+  const vals=data.map(p=>p[trendMetric]);
+  let mn=Math.min(...vals), mx=Math.max(...vals);
+  if(mx-mn<1e-6){ mn-=1; mx+=1; }
+  const padv=(mx-mn)*0.12; mn-=padv; mx+=padv;
+  const tMin=data[0].ts, tMax=data[data.length-1].ts;
+  const px=t=> x0 + (tMax===tMin?0.5:(t-tMin)/(tMax-tMin))*(x1-x0);
+  const py=v=> y1 - (v-mn)/(mx-mn)*(y1-y0);
+
+  // safe band (in-range zone) for the metric
+  const bands={ ph:[6.5,8.5], temp:[null,40], level:[900,null], tan:[null,10.8] };
+  const band=bands[trendMetric];
+  if(band){
+    const lo=band[0]==null?mn:band[0], hi=band[1]==null?mx:band[1];
+    const yb=Math.max(y0,py(hi)), yt=Math.min(y1,py(lo));
+    ctx.fillStyle='rgba(29,158,117,0.07)';
+    ctx.fillRect(x0,yb,x1-x0,yt-yb);
+  }
+
+  // gridlines + y labels
+  ctx.strokeStyle='#eef2f0'; ctx.fillStyle='#9ca3af'; ctx.font='11px -apple-system,Segoe UI,sans-serif';
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  for(let i=0;i<=4;i++){
+    const v=mn+(mx-mn)*i/4, y=py(v);
+    ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke();
+    ctx.fillText(metricMeta[trendMetric].fmt(v), x1+6, y);
+  }
+  // x time labels (start / mid / end)
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  const fmtT=ms=>{ const d=new Date(ms); return pad(d.getHours())+':'+pad(d.getMinutes()); };
+  [0,0.5,1].forEach(f=>{
+    const t=tMin+(tMax-tMin)*f, xx=px(t);
+    ctx.fillText(fmtT(t), Math.min(Math.max(xx,x0+12),x1-12), y1+5);
+  });
+
+  // line
+  ctx.beginPath();
+  data.forEach((p,i)=>{ const X=px(p.ts), Y=py(p[trendMetric]); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); });
+  ctx.strokeStyle='#1D9E75'; ctx.lineWidth=1.8; ctx.lineJoin='round'; ctx.stroke();
+  // last point marker
+  const last=data[data.length-1];
+  ctx.beginPath(); ctx.arc(px(last.ts),py(last[trendMetric]),3,0,Math.PI*2); ctx.fillStyle='#0F6E56'; ctx.fill();
+
+  const mm=metricMeta[trendMetric];
+  meta.textContent=`${data.length} pts · ${mm.label} ${mm.fmt(mn)}–${mm.fmt(mx)} ${mm.unit}`.trim();
 }
 
 /* ============================================================
@@ -915,13 +1121,15 @@ function tick(){
     tan=clamp(tan+(Math.random()-0.5)*0.2,0,14);
     syncSliders();
     updateDisplay(true);
+    pushTrend({ ts:Date.now(), ph, temp, level, tan });
+    drawTrend();
   }
   renderPacketMeta();
 }
 
 /* ---------- boot ---------- */
 document.getElementById('days-input').addEventListener('input', updateFish);
-window.addEventListener('resize', ()=>updateDisplay(false));
+window.addEventListener('resize', ()=>{ updateDisplay(false); drawTrend(); });
 
 if(!('serial' in navigator)){
   const b=document.getElementById('btn-usb');
