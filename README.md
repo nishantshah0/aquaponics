@@ -1,11 +1,14 @@
 # AquaControl 🐟🌱
 
-A live monitoring dashboard for a 40‑fish / 40‑plant aquaponics system
-(ENG SCI 1050, Western University). It runs entirely in the browser as a single
-`index.html` — **no backend, no build step** — and connects to **real hardware**
-two different ways, with a physics‑flavoured simulation as the fallback.
+![AquaControl dashboard](docs/banner.svg)
 
-**Live demo:** open `index.html`, or host it on GitHub Pages.
+A full‑stack, real‑time monitoring system for a 40‑fish / 40‑plant aquaponics build
+(ENG SCI 1050, Western University). The dashboard is a single `index.html` with **no
+build step**; it reads **real hardware** four ways — a Node backend, USB (Web Serial),
+Wi‑Fi (MQTT), or a built‑in physics simulation fallback.
+
+**Live demo:** open `index.html`, host it on GitHub Pages, or run the backend (below)
+to get persisted history + live streaming.
 
 ---
 
