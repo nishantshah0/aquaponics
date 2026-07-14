@@ -139,7 +139,7 @@ Sketch: [`firmware/aquacontrol_esp32/aquacontrol_esp32.ino`](firmware/aquacontro
 ### Upload
 1. Arduino IDE → install the **esp32** boards package and the libraries above.
 2. Select **ESP32 Dev Module** and the right COM port.
-3. Upload. Open Serial Monitor at **115200** — you should see JSON lines every 2 s.
+3. Upload. Open Serial Monitor at **115200** — it prints JSON lines every 2 s.
 
 ---
 
